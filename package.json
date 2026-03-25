@@ -1,7 +1,7 @@
 {
   "name": "hj-hacker-whatsapp-bot",
   "version": "1.0.0",
-  "description": "Stable WhatsApp Bot by HJ-HACKER",
+  "description": "WhatsApp Bot with Web Interface by HJ-HACKER",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -15,6 +15,7 @@
     "moment-timezone": "^0.5.45",
     "pino": "^8.16.2",
     "chalk": "^4.1.2",
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "path": "^0.12.7"
   }
 }
