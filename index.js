@@ -3,9 +3,7 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers
 const P = require('pino');
 const path = require('path');
 const crypto = require('crypto');
-const axios = require('axios');
 const moment = require('moment-timezone');
-const fs = require('fs');
 
 // Fix crypto
 global.crypto = crypto;
@@ -32,7 +30,6 @@ const config = {
 
 // ============ COMMANDS ============
 const commands = {
-    // General Commands
     '.help': async (sock, msg, args, sender) => {
         const menu = `╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
 ┃    *${config.botName} BOT MENU*        
@@ -42,8 +39,8 @@ const commands = {
 
 ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
 ┃  *🛡️ GENERAL COMMANDS*          
-┃  • .help - Show this menu
-┃  • .ping - Check bot status
+┃  • .help - Show menu
+┃  • .ping - Check bot
 ┃  • .owner - Owner info
 ┃  • .joke - Random joke
 ┃  • .time - Current time
@@ -53,10 +50,8 @@ const commands = {
 ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
 ┃  *👮‍♂️ GROUP COMMANDS*            
 ┃  • .tagall - Tag all members
-┃  • .hidetag <msg> - Hidden tag
+┃  • .hidetag - Hidden tag
 ┃  • .groupinfo - Group info
-┃  • .welcome <on/off> - Welcome msg
-┃  • .goodbye <on/off> - Goodbye msg
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
 ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
@@ -65,17 +60,14 @@ const commands = {
 ┃  • .autoread <on/off>
 ┃  • .anticall <on/off>
 ┃  • .settings - Show settings
-┃  • .broadcast <msg> - Broadcast
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
 ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
-┃  *🖼️ ANIME/STICKER*            
+┃  *🖼️ ANIME COMMANDS*            
 ┃  • .kiss - Send kiss
 ┃  • .hug - Send hug
 ┃  • .slap - Send slap
 ┃  • .pat - Send pat
-┃  • .cry - Send cry
-┃  • .wink - Send wink
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
 ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
@@ -92,7 +84,6 @@ const commands = {
     },
     
     '.ping': async (sock, msg, args, sender) => {
-        const start = Date.now();
         await sock.sendMessage(msg.key.remoteJid, { text: '🏓 Pong!' });
     },
     
@@ -110,9 +101,7 @@ const commands = {
         const jokes = [
             'Why don\'t scientists trust atoms? Because they make up everything!',
             'Why did the scarecrow win an award? He was outstanding in his field!',
-            'What do you call a fake noodle? An impasta!',
-            'Why did the bicycle fall over? Because it was two-tired!',
-            'What do you call a bear with no teeth? A gummy bear!'
+            'What do you call a fake noodle? An impasta!'
         ];
         const randomJoke = jokes[Math.floor(Math.random() * jokes.length)];
         await sock.sendMessage(msg.key.remoteJid, { text: randomJoke });
@@ -139,7 +128,7 @@ const commands = {
             const text = args.join(' ') || '📢 Attention everyone!';
             await sock.sendMessage(msg.key.remoteJid, { text, mentions });
         } catch (e) {
-            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Failed to tag all' });
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Failed' });
         }
     },
     
@@ -165,7 +154,7 @@ const commands = {
         }
         try {
             const metadata = await sock.groupMetadata(msg.key.remoteJid);
-            const info = `📛 *Name:* ${metadata.subject}\n🆔 *ID:* ${metadata.id}\n👥 *Members:* ${metadata.participants.length}\n👑 *Owner:* ${metadata.owner || 'Unknown'}`;
+            const info = `📛 *Name:* ${metadata.subject}\n👥 *Members:* ${metadata.participants.length}\n👑 *Owner:* ${metadata.owner || 'Unknown'}`;
             await sock.sendMessage(msg.key.remoteJid, { text: info });
         } catch (e) {
             await sock.sendMessage(msg.key.remoteJid, { text: '❌ Failed' });
@@ -177,14 +166,7 @@ const commands = {
             await sock.sendMessage(msg.key.remoteJid, { text: '❌ Owner only!' });
             return;
         }
-        const settings = `╭━━━━━━━━━━━━━━━━━━━━╮
-┃ *BOT SETTINGS*         
-╰━━━━━━━━━━━━━━━━━━━━╯
-
-🤖 Mode: ${config.mode}
-📖 Auto Read: ${config.autoRead ? 'ON' : 'OFF'}
-📞 Anti Call: ${config.antiCall ? 'ON' : 'OFF'}
-⏱️ Cooldown: ${config.cooldown/1000}s`;
+        const settings = `🤖 Mode: ${config.mode}\n📖 Auto Read: ${config.autoRead ? 'ON' : 'OFF'}\n📞 Anti Call: ${config.antiCall ? 'ON' : 'OFF'}`;
         await sock.sendMessage(msg.key.remoteJid, { text: settings });
     },
     
@@ -227,41 +209,20 @@ const commands = {
         await sock.sendMessage(msg.key.remoteJid, { text: `✅ Anti Call: ${config.antiCall ? 'ON' : 'OFF'}` });
     },
     
-    '.broadcast': async (sock, msg, args, sender) => {
-        if (!isOwner(sender)) {
-            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Owner only!' });
-            return;
-        }
-        if (!args[0]) {
-            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Message required!' });
-            return;
-        }
-        const broadcastMsg = args.join(' ');
-        await sock.sendMessage(msg.key.remoteJid, { text: `📢 Broadcast: ${broadcastMsg}` });
-    },
-    
     '.kiss': async (sock, msg, args, sender) => {
-        await sock.sendMessage(msg.key.remoteJid, { text: '💋 *Sending you a kiss!* 💋' });
+        await sock.sendMessage(msg.key.remoteJid, { text: '💋 *Kiss!* 💋' });
     },
     
     '.hug': async (sock, msg, args, sender) => {
-        await sock.sendMessage(msg.key.remoteJid, { text: '🤗 *Sending you a warm hug!* 🤗' });
+        await sock.sendMessage(msg.key.remoteJid, { text: '🤗 *Hug!* 🤗' });
     },
     
     '.slap': async (sock, msg, args, sender) => {
-        await sock.sendMessage(msg.key.remoteJid, { text: '👋 *SLAP!* 👋' });
+        await sock.sendMessage(msg.key.remoteJid, { text: '👋 *Slap!* 👋' });
     },
     
     '.pat': async (sock, msg, args, sender) => {
-        await sock.sendMessage(msg.key.remoteJid, { text: '🫱 *Pat pat!* 🫱' });
-    },
-    
-    '.cry': async (sock, msg, args, sender) => {
-        await sock.sendMessage(msg.key.remoteJid, { text: '😭 *Don\'t cry!* 😭' });
-    },
-    
-    '.wink': async (sock, msg, args, sender) => {
-        await sock.sendMessage(msg.key.remoteJid, { text: '😉 *Wink wink!* 😉' });
+        await sock.sendMessage(msg.key.remoteJid, { text: '🫱 *Pat!* 🫱' });
     }
 };
 
@@ -269,10 +230,6 @@ const commands = {
 function isOwner(number) {
     const clean = number.replace(/[^0-9]/g, '');
     return clean === config.ownerNumber;
-}
-
-function formatTime() {
-    return moment().tz('Asia/Karachi').format('HH:mm:ss');
 }
 
 // Cooldown map
@@ -294,7 +251,7 @@ async function handleMessage(sock, message) {
         
         // Anti-call
         if (config.antiCall && message.message.call) {
-            await sock.sendMessage(sender, { text: '📞 Anti-call active! Please text only.' });
+            await sock.sendMessage(sender, { text: '📞 Anti-call active!' });
             return;
         }
         
@@ -310,7 +267,7 @@ async function handleMessage(sock, message) {
         
         // Private mode
         if (config.mode === 'private' && !isOwner(sender)) {
-            await sock.sendMessage(sender, { text: '❌ Private mode. Only owner can use.' });
+            await sock.sendMessage(sender, { text: '❌ Private mode' });
             return;
         }
         
@@ -349,11 +306,11 @@ app.get('/pair', async (req, res) => {
     
     try {
         if (!sock) {
-            return res.json({ error: 'Bot connecting, please wait...' });
+            return res.json({ error: 'Bot connecting...' });
         }
         
         const code = await sock.requestPairingCode(cleanNumber);
-        console.log(`✅ Pairing code for ${cleanNumber}: ${code}`);
+        console.log(`✅ Pairing code: ${code}`);
         res.json({ code: code });
         
     } catch (error) {
@@ -362,11 +319,19 @@ app.get('/pair', async (req, res) => {
     }
 });
 
-// ============ BOT CONNECTION ============
+// ============ BOT CONNECTION WITH BETTER RECONNECT ============
 let sock = null;
-let reconnectCount = 0;
+let reconnectAttempts = 0;
+let isConnecting = false;
 
 async function connect() {
+    if (isConnecting) {
+        console.log('Already connecting...');
+        return;
+    }
+    
+    isConnecting = true;
+    
     try {
         const { state, saveCreds } = await useMultiFileAuthState('auth_info');
         
@@ -376,54 +341,102 @@ async function connect() {
             auth: state,
             browser: Browsers.macOS('Desktop'),
             version: [2, 3000, 1015901307],
-            connectTimeoutMs: 30000,
-            defaultQueryTimeoutMs: 30000,
-            keepAliveIntervalMs: 10000
+            connectTimeoutMs: 60000,
+            defaultQueryTimeoutMs: 60000,
+            keepAliveIntervalMs: 30000,
+            syncFullHistory: false,
+            markOnlineOnConnect: true,
+            generateHighQualityLinkPreview: false
         });
         
         sock.ev.on('creds.update', saveCreds);
         
-        sock.ev.on('connection.update', (update) => {
+        sock.ev.on('connection.update', async (update) => {
             const { connection, lastDisconnect } = update;
             
             if (connection === 'open') {
+                reconnectAttempts = 0;
                 console.log('\n✅ ================================');
                 console.log(`✅ ${config.botName} Bot Online!`);
                 console.log(`✅ Number: ${sock.user.id.split(':')[0]}`);
                 console.log(`✅ Mode: ${config.mode}`);
                 console.log('✅ ================================\n');
-                reconnectCount = 0;
             }
             
             if (connection === 'close') {
-                const code = lastDisconnect?.error?.output?.statusCode;
-                if (code !== DisconnectReason.loggedOut) {
-                    console.log('⚠️ Disconnected, reconnecting...');
-                    setTimeout(connect, 5000);
-                } else {
-                    console.log('❌ Logged out. Use web interface to pair again.');
+                const statusCode = lastDisconnect?.error?.output?.statusCode;
+                
+                if (statusCode === DisconnectReason.loggedOut) {
+                    console.log('❌ Logged out. Please pair again.');
+                    isConnecting = false;
+                    return;
                 }
+                
+                reconnectAttempts++;
+                const waitTime = Math.min(5000 * reconnectAttempts, 30000);
+                console.log(`⚠️ Disconnected (${reconnectAttempts}). Reconnecting in ${waitTime/1000}s...`);
+                
+                setTimeout(() => {
+                    isConnecting = false;
+                    connect();
+                }, waitTime);
             }
         });
         
         sock.ev.on('messages.upsert', async ({ messages }) => {
             for (const msg of messages) {
+                if (msg.key.fromMe) continue;
                 await handleMessage(sock, msg);
             }
         });
         
+        // Handle errors
+        sock.ev.on('error', (error) => {
+            console.log('Socket error:', error.message);
+        });
+        
+        isConnecting = false;
+        
     } catch (error) {
-        console.log('❌ Connection error:', error.message);
-        setTimeout(connect, 10000);
+        console.log('Connection error:', error.message);
+        isConnecting = false;
+        
+        setTimeout(() => {
+            connect();
+        }, 10000);
     }
 }
 
-// ============ START SERVER & BOT ============
+// ============ START ============
 app.listen(PORT, () => {
-    console.log(`\n🌐 Web Interface: http://localhost:${PORT}`);
-    console.log(`🔗 Pairing URL: http://localhost:${PORT}/pair?number=923266571331`);
-    console.log(`📊 Health Check: http://localhost:${PORT}/health\n`);
+    console.log(`\n🌐 Web: http://localhost:${PORT}`);
+    console.log(`🔗 Pair: http://localhost:${PORT}/pair?number=923266571331`);
+    console.log(`📊 Health: http://localhost:${PORT}/health\n`);
 });
 
-console.log('🚀 Starting HJ-HACKER Bot...\n');
+console.log('🚀 Starting HJ-HACKER Bot...');
 connect();
+
+// Keep alive ping every 5 minutes
+setInterval(() => {
+    if (sock?.user) {
+        console.log(`💓 Bot alive - ${moment().format('HH:mm:ss')}`);
+    }
+}, 300000);
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+    console.log('\n🛑 Shutting down...');
+    if (sock) {
+        await sock.logout();
+    }
+    process.exit(0);
+});
+
+process.on('uncaughtException', (error) => {
+    console.log('Uncaught:', error.message);
+});
+
+process.on('unhandledRejection', (error) => {
+    console.log('Unhandled:', error);
+});
