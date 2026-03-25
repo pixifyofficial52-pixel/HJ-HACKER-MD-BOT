@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HJ-HACKER WhatsApp Bot - Pairing System</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">
+                <i class="fas fa-robot"></i>
+                <span>HJ-HACKER</span>
+            </div>
+            <div class="badge">
+                <i class="fas fa-check-circle"></i> WhatsApp Bot
+            </div>
+        </div>
+
+        <!-- Main Card -->
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-qrcode"></i>
+                <h2>WhatsApp Pairing System</h2>
+                <p>Enter your WhatsApp number to get pairing code</p>
+            </div>
+
+            <div class="card-body">
+                <!-- Number Input -->
+                <div class="input-group">
+                    <label for="phoneNumber">
+                        <i class="fas fa-phone-alt"></i>
+                        WhatsApp Number
+                    </label>
+                    <div class="phone-input">
+                        <span class="country-code">+92</span>
+                        <input type="tel" 
+                               id="phoneNumber" 
+                               placeholder="3XXXXXXXXX" 
+                               maxlength="10"
+                               autocomplete="off">
+                    </div>
+                    <small><i class="fas fa-info-circle"></i> Enter number without country code (e.g., 3266571331)</small>
+                </div>
+
+                <!-- Pair Button -->
+                <button id="pairBtn" class="pair-btn">
+                    <i class="fas fa-link"></i>
+                    Get Pairing Code
+                </button>
+
+                <!-- Loading State -->
+                <div id="loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Requesting pairing code...</p>
+                </div>
+
+                <!-- Result Card -->
+                <div id="result" class="result" style="display: none;">
+                    <div class="result-header">
+                        <i class="fas fa-check-circle"></i>
+                        <h3>Pairing Code Generated!</h3>
+                    </div>
+                    <div class="code-container">
+                        <div class="code-label">Your 6-digit code:</div>
+                        <div class="code-display" id="pairingCode">------</div>
+                        <button class="copy-btn" onclick="copyCode()">
+                            <i class="fas fa-copy"></i> Copy Code
+                        </button>
+                    </div>
+                    <div class="steps">
+                        <h4><i class="fas fa-list-ol"></i> How to pair:</h4>
+                        <ol>
+                            <li>Open WhatsApp on your phone</li>
+                            <li>Go to Settings → Linked Devices</li>
+                            <li>Tap on "Link a Device"</li>
+                            <li>Enter this 6-digit code</li>
+                            <li>Wait for connection</li>
+                        </ol>
+                    </div>
+                    <div class="success-message">
+                        <i class="fas fa-clock"></i>
+                        Code expires in 5 minutes
+                    </div>
+                </div>
+
+                <!-- Error Message -->
+                <div id="error" class="error" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span id="errorMessage">Error message</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bot Status -->
+        <div class="status-card">
+            <div class="status-header">
+                <i class="fas fa-chart-line"></i>
+                <h3>Bot Status</h3>
+            </div>
+            <div class="status-content">
+                <div class="status-item">
+                    <span class="status-label">Status:</span>
+                    <span id="botStatus" class="status-value online">
+                        <i class="fas fa-circle"></i> Checking...
+                    </span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Bot Name:</span>
+                    <span class="status-value">HJ-HACKER</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Version:</span>
+                    <span class="status-value">1.0.0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>© 2024 HJ-HACKER WhatsApp Bot | All Rights Reserved</p>
+            <div class="social-links">
+                <a href="https://whatsapp.com/channel/0029VbAaNJ6C1FuB0mIAx93M" target="_blank">
+                    <i class="fab fa-whatsapp"></i>
+                </a>
+                <a href="#" target="_blank">
+                    <i class="fab fa-github"></i>
+                </a>
+                <a href="#" target="_blank">
+                    <i class="fab fa-telegram"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
