@@ -1,24 +1,20 @@
 {
   "name": "hj-hacker-whatsapp-bot",
   "version": "1.0.0",
-  "description": "Advanced WhatsApp Bot by HJ-HACKER",
+  "description": "Stable WhatsApp Bot by HJ-HACKER",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": "18.x"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.6.0",
     "axios": "^1.6.0",
     "moment-timezone": "^0.5.45",
     "pino": "^8.16.2",
-    "chalk": "^5.3.0",
-    "gradient-string": "^2.0.2",
-    "ytdl-core": "^4.11.5",
-    "yt-search": "^2.10.4",
-    "express": "^4.18.2",
-    "dotenv": "^16.3.1"
+    "chalk": "^4.1.2",
+    "express": "^4.18.2"
   }
 }
