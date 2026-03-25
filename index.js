@@ -5,6 +5,10 @@
 ╚═══════════════════════════════════════════════╝
 */
 
+// ============ FIX CRYPTO ISSUE ============
+const crypto = require('crypto');
+global.crypto = crypto;
+
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
 const P = require('pino');
 const fs = require('fs');
@@ -41,42 +45,37 @@ app.get('/health', (req, res) => {
 
 // Pairing endpoint for web interface
 app.get('/pair', async (req, res) => {
+    console.log('📱 Pair request received:', req.query);
+    
     const number = req.query.number;
     
     if (!number) {
+        console.log('❌ No number provided');
         return res.status(400).json({ error: 'Number is required' });
     }
     
-    // Clean and format number
+    // Clean number
     let cleanNumber = number.replace(/[^0-9]/g, '');
-    if (!cleanNumber.startsWith('92')) {
-        cleanNumber = '92' + cleanNumber;
-    }
     
-    // Validate number length
-    if (cleanNumber.length < 10 || cleanNumber.length > 12) {
-        return res.status(400).json({ error: 'Invalid phone number format' });
-    }
+    console.log('📱 Clean number:', cleanNumber);
     
     try {
         if (!sock) {
-            return res.status(503).json({ error: 'Bot is not connected yet. Please wait and try again.' });
+            console.log('❌ Bot not connected');
+            return res.status(503).json({ error: 'Bot is not connected yet. Please wait.' });
         }
         
-        // Check if already authenticated
         if (sock.authState.creds.registered) {
-            return res.status(400).json({ 
-                error: 'Bot is already paired',
+            return res.json({ 
+                error: 'Bot already paired',
                 message: 'This bot is already connected to a WhatsApp account'
             });
         }
         
-        console.log(chalk.yellow(`📱 Pairing request for: ${cleanNumber}`));
-        
-        // Request pairing code
+        console.log('🔄 Requesting pairing code for:', cleanNumber);
         const code = await sock.requestPairingCode(cleanNumber);
         
-        console.log(chalk.green(`✅ Pairing code generated for ${cleanNumber}: ${code}`));
+        console.log('✅ Pairing code generated:', code);
         
         res.json({ 
             success: true, 
@@ -86,10 +85,10 @@ app.get('/pair', async (req, res) => {
         });
         
     } catch (error) {
-        console.error(chalk.red(`❌ Pairing error: ${error.message}`));
+        console.error('❌ Pairing error:', error);
         res.status(500).json({ 
             error: error.message || 'Failed to generate pairing code',
-            suggestion: 'Make sure the number is correct and try again'
+            details: error.toString()
         });
     }
 });
@@ -226,36 +225,14 @@ const commands = {
 ┃  • .tagall - Tag all members
 ┃  • .hidetag <msg> - Hidden tag
 ┃  • .groupinfo - Group info
-┃  • .welcome <on/off> - Welcome msg
-┃  • .goodbye <on/off> - Goodbye msg
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
 ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
 ┃  *🔒 OWNER COMMANDS*            
 ┃  • .mode <public/private>
 ┃  • .autoread <on/off>
-┃  • .autotyping <on/off>
 ┃  • .anticall <on/off>
 ┃  • .settings - Show settings
-┃  • .broadcast <msg> - Broadcast
-╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
-
-╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
-┃  *📥 DOWNLOADER*                
-┃  • .play <song> - Play music
-┃  • .song <song> - Download song
-┃  • .ytmp3 <url> - YouTube audio
-┃  • .ytmp4 <url> - YouTube video
-╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
-
-╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
-┃  *🖼️ ANIME COMMANDS*            
-┃  • .kiss - Send kiss
-┃  • .hug - Send hug
-┃  • .slap - Send slap
-┃  • .pat - Send pat
-┃  • .cry - Send cry
-┃  • .wink - Send wink
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
 ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
@@ -274,9 +251,8 @@ const commands = {
     
     '.ping': async (sock, msg, args, sender) => {
         const start = Date.now();
-        await sock.sendMessage(msg.key.remoteJid, { text: '🏓 Pinging...' });
+        await sock.sendMessage(msg.key.remoteJid, { text: '🏓 Pong!' });
         const end = Date.now();
-        await sock.sendMessage(msg.key.remoteJid, { text: `🏓 Pong! ${end - start}ms` });
     },
     
     '.owner': async (sock, msg, args, sender) => {
@@ -293,10 +269,7 @@ const commands = {
     '.joke': async (sock, msg, args, sender) => {
         const jokes = [
             'Why don\'t scientists trust atoms? Because they make up everything!',
-            'Why did the scarecrow win an award? He was outstanding in his field!',
-            'Why don\'t eggs tell jokes? They\'d crack each other up!',
-            'What do you call a fake noodle? An impasta!',
-            'Why did the bicycle fall over? Because it was two-tired!'
+            'Why did the scarecrow win an award? He was outstanding in his field!'
         ];
         const randomJoke = jokes[Math.floor(Math.random() * jokes.length)];
         await sock.sendMessage(msg.key.remoteJid, { text: randomJoke });
@@ -304,116 +277,92 @@ const commands = {
     
     '.time': async (sock, msg, args, sender) => {
         const time = formatTime();
-        await sock.sendMessage(msg.key.remoteJid, { text: `🕐 Current Time: ${time}` });
+        await sock.sendMessage(msg.key.remoteJid, { text: `🕐 Time: ${time}` });
     },
     
     '.date': async (sock, msg, args, sender) => {
         const date = formatDate();
-        await sock.sendMessage(msg.key.remoteJid, { text: `📅 Current Date: ${date}` });
+        await sock.sendMessage(msg.key.remoteJid, { text: `📅 Date: ${date}` });
     },
     
     '.tagall': async (sock, msg, args, sender) => {
         if (!msg.key.remoteJid.includes('g.us')) {
-            await sock.sendMessage(msg.key.remoteJid, { text: '❌ This command can only be used in groups!' });
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Group only!' });
             return;
         }
         
         const groupMetadata = await sock.groupMetadata(msg.key.remoteJid);
         const participants = groupMetadata.participants;
-        let mentions = [];
-        
-        for (let participant of participants) {
-            mentions.push(participant.id);
-        }
-        
+        let mentions = participants.map(p => p.id);
         const text = args.join(' ') || 'Attention everyone!';
         await sock.sendMessage(msg.key.remoteJid, { text, mentions });
     },
     
     '.hidetag': async (sock, msg, args, sender) => {
         if (!msg.key.remoteJid.includes('g.us')) {
-            await sock.sendMessage(msg.key.remoteJid, { text: '❌ This command can only be used in groups!' });
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Group only!' });
             return;
         }
         
         const text = args.join(' ') || 'Hidden tag message';
         const groupMetadata = await sock.groupMetadata(msg.key.remoteJid);
         const participants = groupMetadata.participants;
-        let mentions = [];
-        
-        for (let participant of participants) {
-            mentions.push(participant.id);
-        }
-        
+        let mentions = participants.map(p => p.id);
         await sock.sendMessage(msg.key.remoteJid, { text, mentions });
     },
     
     '.groupinfo': async (sock, msg, args, sender) => {
         if (!msg.key.remoteJid.includes('g.us')) {
-            await sock.sendMessage(msg.key.remoteJid, { text: '❌ This command can only be used in groups!' });
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Group only!' });
             return;
         }
         
         const groupMetadata = await sock.groupMetadata(msg.key.remoteJid);
         const info = `
-╭━━━━━━━━━━━━━━━━━━━━╮
-┃ *GROUP INFORMATION*     
-╰━━━━━━━━━━━━━━━━━━━━╯
-
-📛 *Name:* ${groupMetadata.subject}
-🆔 *ID:* ${groupMetadata.id}
-👥 *Members:* ${groupMetadata.participants.length}
-👑 *Owner:* ${groupMetadata.owner || 'Unknown'}
-📅 *Created:* ${new Date(groupMetadata.creation * 1000).toLocaleDateString()}
+📛 Name: ${groupMetadata.subject}
+👥 Members: ${groupMetadata.participants.length}
+👑 Owner: ${groupMetadata.owner || 'Unknown'}
         `;
         await sock.sendMessage(msg.key.remoteJid, { text: info });
     },
     
     '.settings': async (sock, msg, args, sender) => {
         if (!isOwner(sender)) {
-            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Only owner can use this command!' });
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Owner only!' });
             return;
         }
         
         const settings = `
-╭━━━━━━━━━━━━━━━━━━━━╮
-┃ *BOT SETTINGS*         
-╰━━━━━━━━━━━━━━━━━━━━╯
-
-🤖 *Mode:* ${config.mode}
-📖 *Auto Read:* ${config.autoRead ? 'ON' : 'OFF'}
-⌨️ *Auto Typing:* ${config.autoTyping ? 'ON' : 'OFF'}
-📞 *Anti Call:* ${config.antiCall ? 'ON' : 'OFF'}
-🗑️ *Anti Delete:* ${config.antiDelete ? 'ON' : 'OFF'}
-👋 *Welcome:* ${config.welcomeMessage ? 'ON' : 'OFF'}
-👋 *Goodbye:* ${config.goodbyeMessage ? 'ON' : 'OFF'}
+🤖 Mode: ${config.mode}
+📖 Auto Read: ${config.autoRead ? 'ON' : 'OFF'}
+📞 Anti Call: ${config.antiCall ? 'ON' : 'OFF'}
         `;
         await sock.sendMessage(msg.key.remoteJid, { text: settings });
     },
     
     '.mode': async (sock, msg, args, sender) => {
         if (!isOwner(sender)) {
-            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Only owner can use this command!' });
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Owner only!' });
             return;
         }
         
         if (!args[0] || (args[0] !== 'public' && args[0] !== 'private')) {
-            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Please use: .mode public or .mode private' });
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Use: .mode public or .mode private' });
             return;
         }
         
         config.mode = args[0];
-        await sock.sendMessage(msg.key.remoteJid, { text: `✅ Mode changed to: ${config.mode}` });
+        await sock.sendMessage(msg.key.remoteJid, { text: `✅ Mode: ${config.mode}` });
     },
     
     '.autoread': async (sock, msg, args, sender) => {
         if (!isOwner(sender)) {
-            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Only owner can use this command!' });
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Owner only!' });
             return;
         }
         
         if (!args[0] || (args[0] !== 'on' && args[0] !== 'off')) {
-            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Please use: .autoread on or .autoread off' });
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Use: .autoread on or .autoread off' });
             return;
         }
         
@@ -423,33 +372,17 @@ const commands = {
     
     '.anticall': async (sock, msg, args, sender) => {
         if (!isOwner(sender)) {
-            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Only owner can use this command!' });
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Owner only!' });
             return;
         }
         
         if (!args[0] || (args[0] !== 'on' && args[0] !== 'off')) {
-            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Please use: .anticall on or .anticall off' });
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Use: .anticall on or .anticall off' });
             return;
         }
         
         config.antiCall = args[0] === 'on';
         await sock.sendMessage(msg.key.remoteJid, { text: `✅ Anti Call: ${config.antiCall ? 'ON' : 'OFF'}` });
-    },
-    
-    '.broadcast': async (sock, msg, args, sender) => {
-        if (!isOwner(sender)) {
-            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Only owner can use this command!' });
-            return;
-        }
-        
-        if (!args[0]) {
-            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Please provide a message to broadcast!' });
-            return;
-        }
-        
-        const broadcastMsg = args.join(' ');
-        // This would require storing all chats - for now just a placeholder
-        await sock.sendMessage(msg.key.remoteJid, { text: `📢 Broadcast: ${broadcastMsg}` });
     }
 };
 
@@ -460,17 +393,16 @@ async function handleMessage(sock, message) {
         
         const sender = message.key.remoteJid;
         const text = message.message.conversation || 
-                     message.message.extendedTextMessage?.text || 
-                     message.message.imageMessage?.caption || '';
+                     message.message.extendedTextMessage?.text || '';
         
         if (!text) return;
         
         const cmd = text.split(' ')[0].toLowerCase();
         const args = text.slice(cmd.length).trim().split(' ');
         
-        // Anti-call handling
+        // Anti-call
         if (config.antiCall && message.message.call) {
-            await sock.sendMessage(sender, { text: '📞 Anti-call is active! Please text only.' });
+            await sock.sendMessage(sender, { text: '📞 Anti-call active!' });
             return;
         }
         
@@ -479,25 +411,14 @@ async function handleMessage(sock, message) {
             await sock.readMessages([message.key]);
         }
         
-        // Auto typing
-        if (config.autoTyping && !sender.includes('g.us')) {
-            await sock.sendPresenceUpdate('composing', sender);
-            setTimeout(() => {
-                sock.sendPresenceUpdate('paused', sender);
-            }, 2000);
-        }
-        
-        // Cooldown check
+        // Cooldown
         if (cooldown.has(sender)) {
-            const last = cooldown.get(sender);
-            if (Date.now() - last < config.cooldown) {
-                return;
-            }
+            if (Date.now() - cooldown.get(sender) < config.cooldown) return;
         }
         
-        // Private mode check
+        // Private mode
         if (config.mode === 'private' && !isOwner(sender)) {
-            await sock.sendMessage(sender, { text: '❌ Bot is in private mode. Only owner can use.' });
+            await sock.sendMessage(sender, { text: '❌ Private mode' });
             return;
         }
         
@@ -508,7 +429,7 @@ async function handleMessage(sock, message) {
         }
         
     } catch (error) {
-        console.error(chalk.red(`Message error: ${error.message}`));
+        console.error('Message error:', error.message);
     }
 }
 
@@ -532,9 +453,7 @@ async function connectToWhatsApp() {
             version: [2, 3000, 1015901307],
             connectTimeoutMs: 30000,
             defaultQueryTimeoutMs: 30000,
-            keepAliveIntervalMs: 10000,
-            syncFullHistory: false,
-            markOnlineOnConnect: true
+            keepAliveIntervalMs: 10000
         });
         
         sock.ev.on('creds.update', saveCreds);
@@ -556,20 +475,16 @@ async function connectToWhatsApp() {
                         await delay(waitTime);
                         isConnecting = false;
                         connectToWhatsApp();
-                    } else {
-                        console.log(chalk.red('❌ Max reconnects reached. Please restart.'));
-                        process.exit(1);
                     }
                 } else {
-                    console.log(chalk.red('❌ Logged out. Please use web interface to pair again.'));
+                    console.log(chalk.red('❌ Logged out. Use web interface to pair again.'));
                 }
             } 
             else if (connection === 'open') {
                 reconnectAttempts = 0;
                 console.log(chalk.green(`\n✅ Bot Online!`));
-                console.log(chalk.cyan(`🤖 Bot Name: ${config.botName}`));
-                console.log(chalk.cyan(`📱 Number: ${sock.user.id.split(':')[0]}`));
-                console.log(chalk.cyan(`🌐 Web Interface: http://localhost:${PORT}\n`));
+                console.log(chalk.cyan(`🤖 ${config.botName}`));
+                console.log(chalk.cyan(`📱 ${sock.user.id.split(':')[0]}\n`));
             }
         });
         
@@ -578,20 +493,6 @@ async function connectToWhatsApp() {
                 await handleMessage(sock, msg);
             }
         });
-        
-        // Auto pair if PAIRING_NUMBER is set in env
-        const autoPairNumber = process.env.AUTO_PAIR_NUMBER;
-        if (autoPairNumber && !sock.authState.creds.registered) {
-            console.log(chalk.yellow(`\n📱 Auto-pairing for: ${autoPairNumber}`));
-            await delay(3000);
-            try {
-                const code = await sock.requestPairingCode(autoPairNumber);
-                console.log(chalk.green(`✅ PAIRING CODE: ${code}`));
-                console.log(chalk.cyan(`🔗 Enter this code in WhatsApp > Settings > Linked Devices\n`));
-            } catch (error) {
-                console.log(chalk.red(`❌ Auto-pair failed: ${error.message}`));
-            }
-        }
         
         isConnecting = false;
         
@@ -609,12 +510,10 @@ async function connectToWhatsApp() {
 console.log(chalk.blue('🚀 Starting WhatsApp Bot...\n'));
 connectToWhatsApp();
 
-// Keep alive log every 5 minutes
+// Keep alive log
 setInterval(() => {
     if (sock?.user) {
-        console.log(chalk.dim(`[${formatTime()}] Bot running | ${sock.user.id.split(':')[0]}`));
-    } else {
-        console.log(chalk.dim(`[${formatTime()}] Bot connecting...`));
+        console.log(chalk.dim(`[${formatTime()}] Bot running`));
     }
 }, 300000);
 
@@ -628,9 +527,9 @@ process.on('SIGINT', async () => {
 });
 
 process.on('uncaughtException', (error) => {
-    console.log(chalk.red(`Uncaught Exception: ${error.message}`));
+    console.log(chalk.red(`Uncaught: ${error.message}`));
 });
 
-process.on('unhandledRejection', (error) => {
-    console.log(chalk.red(`Unhandled Rejection: ${error.message}`));
+process.on('unhandledRejection', (error) {
+    console.log(chalk.red(`Unhandled: ${error}`));
 });
