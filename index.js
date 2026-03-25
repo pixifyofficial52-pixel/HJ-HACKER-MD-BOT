@@ -1,210 +1,40 @@
-/* 
-╔═══════════════════════════════════════════════╗
-║     WHATSAPP BOT BY HJ-HACKER                 ║
-║     WITH WEB INTERFACE & PAIRING SYSTEM      ║
-╚═══════════════════════════════════════════════╝
-*/
-
-// ============ FIX CRYPTO ISSUE ============
-const crypto = require('crypto');
-global.crypto = crypto;
-
+const express = require('express');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
 const P = require('pino');
-const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const axios = require('axios');
 const moment = require('moment-timezone');
-const chalk = require('chalk');
-const express = require('express');
+const fs = require('fs');
 
-// ============ EXPRESS SERVER ============
+// Fix crypto
+global.crypto = crypto;
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// Serve static files
 app.use(express.json());
 app.use(express.static('public'));
 
-// Serve index page
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.status(200).json({
-        status: 'ok',
-        bot: 'HJ-HACKER WhatsApp Bot',
-        version: '1.0.0',
-        uptime: process.uptime(),
-        connected: sock ? true : false,
-        timestamp: new Date().toISOString()
-    });
-});
-
-// Pairing endpoint for web interface
-app.get('/pair', async (req, res) => {
-    console.log('📱 Pair request received:', req.query);
-    
-    const number = req.query.number;
-    
-    if (!number) {
-        console.log('❌ No number provided');
-        return res.status(400).json({ error: 'Number is required' });
-    }
-    
-    // Clean number
-    let cleanNumber = number.replace(/[^0-9]/g, '');
-    
-    console.log('📱 Clean number:', cleanNumber);
-    
-    try {
-        if (!sock) {
-            console.log('❌ Bot not connected');
-            return res.status(503).json({ error: 'Bot is not connected yet. Please wait.' });
-        }
-        
-        if (sock.authState.creds.registered) {
-            return res.json({ 
-                error: 'Bot already paired',
-                message: 'This bot is already connected to a WhatsApp account'
-            });
-        }
-        
-        console.log('🔄 Requesting pairing code for:', cleanNumber);
-        const code = await sock.requestPairingCode(cleanNumber);
-        
-        console.log('✅ Pairing code generated:', code);
-        
-        res.json({ 
-            success: true, 
-            code: code,
-            number: cleanNumber,
-            message: 'Pairing code generated successfully'
-        });
-        
-    } catch (error) {
-        console.error('❌ Pairing error:', error);
-        res.status(500).json({ 
-            error: error.message || 'Failed to generate pairing code',
-            details: error.toString()
-        });
-    }
-});
-
-// Bot info endpoint
-app.get('/info', (req, res) => {
-    res.json({
-        botName: 'HJ-HACKER',
-        version: '1.0.0',
-        owner: '923266571331',
-        channel: 'https://whatsapp.com/channel/0029VbAaNJ6C1FuB0mIAx93M',
-        commands: 78,
-        status: sock ? (sock.user ? 'connected' : 'connecting') : 'disconnected'
-    });
-});
-
-// Start express server
-app.listen(PORT, () => {
-    console.log(chalk.blue(`✅ Web Interface: http://localhost:${PORT}`));
-    console.log(chalk.blue(`✅ Health Check: http://localhost:${PORT}/health`));
-});
-
-// ============ BOT CONFIGURATION ============
+// ============ BOT CONFIG ============
 const config = {
     botName: 'HJ-HACKER',
-    ownerNumber: process.env.OWNER_NUMBER || '923266571331',
+    ownerNumber: '923266571331',
     ownerName: 'HJ-HACKER',
     version: '1.0.0',
-    apiUrl: process.env.API_URL || 'https://whatsapp-auth-api-production.up.railway.app',
     channelLink: 'https://whatsapp.com/channel/0029VbAaNJ6C1FuB0mIAx93M',
     mode: 'public',
     autoRead: false,
-    autoTyping: false,
     antiCall: true,
-    antiDelete: false,
-    welcomeMessage: true,
-    goodbyeMessage: true,
     cooldown: 3000
 };
 
-// Colors for console
-const colors = {
-    green: '\x1b[32m',
-    red: '\x1b[31m',
-    yellow: '\x1b[33m',
-    blue: '\x1b[34m',
-    cyan: '\x1b[36m',
-    magenta: '\x1b[35m',
-    reset: '\x1b[0m'
-};
-
-// Print Banner
-console.log(chalk.cyan(`
-╔═══════════════════════════════════════════════╗
-║     WHATSAPP BOT BY HJ-HACKER                 ║
-║     VERSION: ${config.version}                         ║
-║     OWNER: ${config.ownerName}                  ║
-║     WEB INTERFACE ENABLED                      ║
-╚═══════════════════════════════════════════════╝
-`));
-
-// ============ BOT STATE ============
-let sock = null;
-let isConnecting = false;
-let reconnectAttempts = 0;
-const maxReconnectAttempts = 50;
-const cooldown = new Map();
-const groupSettings = new Map();
-
-// ============ HELPER FUNCTIONS ============
-function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function isOwner(number) {
-    const clean = number.replace(/[^0-9]/g, '');
-    return clean === config.ownerNumber;
-}
-
-function formatTime() {
-    return moment().tz('Asia/Karachi').format('HH:mm:ss');
-}
-
-function formatDate() {
-    return moment().tz('Asia/Karachi').format('DD/MM/YYYY');
-}
-
-async function getBuffer(url) {
-    try {
-        const response = await axios.get(url, { responseType: 'arraybuffer' });
-        return Buffer.from(response.data);
-    } catch (error) {
-        return null;
-    }
-}
-
-// ============ API FUNCTIONS ============
-async function sendWhatsAppMessage(botNumber, receiver, text, otp = null) {
-    try {
-        let url = `${config.apiUrl}/send?botNumber=${botNumber}&receiver=${receiver}&text=${encodeURIComponent(text)}`;
-        if (otp) {
-            url += `&otp=${otp}`;
-        }
-        const response = await axios.get(url);
-        return response.data;
-    } catch (error) {
-        console.error('API Error:', error.message);
-        return null;
-    }
-}
-
 // ============ COMMANDS ============
 const commands = {
+    // General Commands
     '.help': async (sock, msg, args, sender) => {
-        const menu = `
-╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
+        const menu = `╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
 ┃    *${config.botName} BOT MENU*        
 ┃    *Version:* ${config.version}         
 ┃    *Owner:* ${config.ownerName}        
@@ -212,8 +42,8 @@ const commands = {
 
 ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
 ┃  *🛡️ GENERAL COMMANDS*          
-┃  • .help or .menu - Show menu
-┃  • .ping - Check bot
+┃  • .help - Show this menu
+┃  • .ping - Check bot status
 ┃  • .owner - Owner info
 ┃  • .joke - Random joke
 ┃  • .time - Current time
@@ -225,6 +55,8 @@ const commands = {
 ┃  • .tagall - Tag all members
 ┃  • .hidetag <msg> - Hidden tag
 ┃  • .groupinfo - Group info
+┃  • .welcome <on/off> - Welcome msg
+┃  • .goodbye <on/off> - Goodbye msg
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
 ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
@@ -233,6 +65,17 @@ const commands = {
 ┃  • .autoread <on/off>
 ┃  • .anticall <on/off>
 ┃  • .settings - Show settings
+┃  • .broadcast <msg> - Broadcast
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+
+╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
+┃  *🖼️ ANIME/STICKER*            
+┃  • .kiss - Send kiss
+┃  • .hug - Send hug
+┃  • .slap - Send slap
+┃  • .pat - Send pat
+┃  • .cry - Send cry
+┃  • .wink - Send wink
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
 ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
@@ -240,8 +83,7 @@ const commands = {
 ┃  ${config.channelLink}           
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
-*© Powered by ${config.botName}*
-        `;
+*© Powered by ${config.botName}*`;
         await sock.sendMessage(msg.key.remoteJid, { text: menu });
     },
     
@@ -252,14 +94,12 @@ const commands = {
     '.ping': async (sock, msg, args, sender) => {
         const start = Date.now();
         await sock.sendMessage(msg.key.remoteJid, { text: '🏓 Pong!' });
-        const end = Date.now();
     },
     
     '.owner': async (sock, msg, args, sender) => {
-        const vcard = 'BEGIN:VCARD\n' +
-                      'VERSION:3.0\n' +
+        const vcard = 'BEGIN:VCARD\nVERSION:3.0\n' +
                       `FN:${config.ownerName}\n` +
-                      `TEL;type=CELL;type=VOICE;waid=${config.ownerNumber}:${config.ownerNumber}\n` +
+                      `TEL;waid=${config.ownerNumber}:${config.ownerNumber}\n` +
                       'END:VCARD';
         await sock.sendMessage(msg.key.remoteJid, {
             contacts: { displayName: config.ownerName, contacts: [{ vcard }] }
@@ -269,61 +109,67 @@ const commands = {
     '.joke': async (sock, msg, args, sender) => {
         const jokes = [
             'Why don\'t scientists trust atoms? Because they make up everything!',
-            'Why did the scarecrow win an award? He was outstanding in his field!'
+            'Why did the scarecrow win an award? He was outstanding in his field!',
+            'What do you call a fake noodle? An impasta!',
+            'Why did the bicycle fall over? Because it was two-tired!',
+            'What do you call a bear with no teeth? A gummy bear!'
         ];
         const randomJoke = jokes[Math.floor(Math.random() * jokes.length)];
         await sock.sendMessage(msg.key.remoteJid, { text: randomJoke });
     },
     
     '.time': async (sock, msg, args, sender) => {
-        const time = formatTime();
+        const time = moment().tz('Asia/Karachi').format('hh:mm:ss A');
         await sock.sendMessage(msg.key.remoteJid, { text: `🕐 Time: ${time}` });
     },
     
     '.date': async (sock, msg, args, sender) => {
-        const date = formatDate();
+        const date = moment().tz('Asia/Karachi').format('DD/MM/YYYY');
         await sock.sendMessage(msg.key.remoteJid, { text: `📅 Date: ${date}` });
     },
     
     '.tagall': async (sock, msg, args, sender) => {
         if (!msg.key.remoteJid.includes('g.us')) {
-            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Group only!' });
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Group command only!' });
             return;
         }
-        
-        const groupMetadata = await sock.groupMetadata(msg.key.remoteJid);
-        const participants = groupMetadata.participants;
-        let mentions = participants.map(p => p.id);
-        const text = args.join(' ') || 'Attention everyone!';
-        await sock.sendMessage(msg.key.remoteJid, { text, mentions });
+        try {
+            const metadata = await sock.groupMetadata(msg.key.remoteJid);
+            const mentions = metadata.participants.map(p => p.id);
+            const text = args.join(' ') || '📢 Attention everyone!';
+            await sock.sendMessage(msg.key.remoteJid, { text, mentions });
+        } catch (e) {
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Failed to tag all' });
+        }
     },
     
     '.hidetag': async (sock, msg, args, sender) => {
         if (!msg.key.remoteJid.includes('g.us')) {
-            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Group only!' });
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Group command only!' });
             return;
         }
-        
-        const text = args.join(' ') || 'Hidden tag message';
-        const groupMetadata = await sock.groupMetadata(msg.key.remoteJid);
-        const participants = groupMetadata.participants;
-        let mentions = participants.map(p => p.id);
-        await sock.sendMessage(msg.key.remoteJid, { text, mentions });
+        try {
+            const text = args.join(' ') || 'Hidden tag message';
+            const metadata = await sock.groupMetadata(msg.key.remoteJid);
+            const mentions = metadata.participants.map(p => p.id);
+            await sock.sendMessage(msg.key.remoteJid, { text, mentions });
+        } catch (e) {
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Failed' });
+        }
     },
     
     '.groupinfo': async (sock, msg, args, sender) => {
         if (!msg.key.remoteJid.includes('g.us')) {
-            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Group only!' });
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Group command only!' });
             return;
         }
-        
-        const groupMetadata = await sock.groupMetadata(msg.key.remoteJid);
-        const info = `
-📛 Name: ${groupMetadata.subject}
-👥 Members: ${groupMetadata.participants.length}
-👑 Owner: ${groupMetadata.owner || 'Unknown'}
-        `;
-        await sock.sendMessage(msg.key.remoteJid, { text: info });
+        try {
+            const metadata = await sock.groupMetadata(msg.key.remoteJid);
+            const info = `📛 *Name:* ${metadata.subject}\n🆔 *ID:* ${metadata.id}\n👥 *Members:* ${metadata.participants.length}\n👑 *Owner:* ${metadata.owner || 'Unknown'}`;
+            await sock.sendMessage(msg.key.remoteJid, { text: info });
+        } catch (e) {
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Failed' });
+        }
     },
     
     '.settings': async (sock, msg, args, sender) => {
@@ -331,12 +177,14 @@ const commands = {
             await sock.sendMessage(msg.key.remoteJid, { text: '❌ Owner only!' });
             return;
         }
-        
-        const settings = `
+        const settings = `╭━━━━━━━━━━━━━━━━━━━━╮
+┃ *BOT SETTINGS*         
+╰━━━━━━━━━━━━━━━━━━━━╯
+
 🤖 Mode: ${config.mode}
 📖 Auto Read: ${config.autoRead ? 'ON' : 'OFF'}
 📞 Anti Call: ${config.antiCall ? 'ON' : 'OFF'}
-        `;
+⏱️ Cooldown: ${config.cooldown/1000}s`;
         await sock.sendMessage(msg.key.remoteJid, { text: settings });
     },
     
@@ -345,12 +193,10 @@ const commands = {
             await sock.sendMessage(msg.key.remoteJid, { text: '❌ Owner only!' });
             return;
         }
-        
         if (!args[0] || (args[0] !== 'public' && args[0] !== 'private')) {
             await sock.sendMessage(msg.key.remoteJid, { text: '❌ Use: .mode public or .mode private' });
             return;
         }
-        
         config.mode = args[0];
         await sock.sendMessage(msg.key.remoteJid, { text: `✅ Mode: ${config.mode}` });
     },
@@ -360,12 +206,10 @@ const commands = {
             await sock.sendMessage(msg.key.remoteJid, { text: '❌ Owner only!' });
             return;
         }
-        
         if (!args[0] || (args[0] !== 'on' && args[0] !== 'off')) {
             await sock.sendMessage(msg.key.remoteJid, { text: '❌ Use: .autoread on or .autoread off' });
             return;
         }
-        
         config.autoRead = args[0] === 'on';
         await sock.sendMessage(msg.key.remoteJid, { text: `✅ Auto Read: ${config.autoRead ? 'ON' : 'OFF'}` });
     },
@@ -375,16 +219,64 @@ const commands = {
             await sock.sendMessage(msg.key.remoteJid, { text: '❌ Owner only!' });
             return;
         }
-        
         if (!args[0] || (args[0] !== 'on' && args[0] !== 'off')) {
             await sock.sendMessage(msg.key.remoteJid, { text: '❌ Use: .anticall on or .anticall off' });
             return;
         }
-        
         config.antiCall = args[0] === 'on';
         await sock.sendMessage(msg.key.remoteJid, { text: `✅ Anti Call: ${config.antiCall ? 'ON' : 'OFF'}` });
+    },
+    
+    '.broadcast': async (sock, msg, args, sender) => {
+        if (!isOwner(sender)) {
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Owner only!' });
+            return;
+        }
+        if (!args[0]) {
+            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Message required!' });
+            return;
+        }
+        const broadcastMsg = args.join(' ');
+        await sock.sendMessage(msg.key.remoteJid, { text: `📢 Broadcast: ${broadcastMsg}` });
+    },
+    
+    '.kiss': async (sock, msg, args, sender) => {
+        await sock.sendMessage(msg.key.remoteJid, { text: '💋 *Sending you a kiss!* 💋' });
+    },
+    
+    '.hug': async (sock, msg, args, sender) => {
+        await sock.sendMessage(msg.key.remoteJid, { text: '🤗 *Sending you a warm hug!* 🤗' });
+    },
+    
+    '.slap': async (sock, msg, args, sender) => {
+        await sock.sendMessage(msg.key.remoteJid, { text: '👋 *SLAP!* 👋' });
+    },
+    
+    '.pat': async (sock, msg, args, sender) => {
+        await sock.sendMessage(msg.key.remoteJid, { text: '🫱 *Pat pat!* 🫱' });
+    },
+    
+    '.cry': async (sock, msg, args, sender) => {
+        await sock.sendMessage(msg.key.remoteJid, { text: '😭 *Don\'t cry!* 😭' });
+    },
+    
+    '.wink': async (sock, msg, args, sender) => {
+        await sock.sendMessage(msg.key.remoteJid, { text: '😉 *Wink wink!* 😉' });
     }
 };
+
+// ============ HELPER FUNCTIONS ============
+function isOwner(number) {
+    const clean = number.replace(/[^0-9]/g, '');
+    return clean === config.ownerNumber;
+}
+
+function formatTime() {
+    return moment().tz('Asia/Karachi').format('HH:mm:ss');
+}
+
+// Cooldown map
+const cooldown = new Map();
 
 // ============ MESSAGE HANDLER ============
 async function handleMessage(sock, message) {
@@ -402,7 +294,7 @@ async function handleMessage(sock, message) {
         
         // Anti-call
         if (config.antiCall && message.message.call) {
-            await sock.sendMessage(sender, { text: '📞 Anti-call active!' });
+            await sock.sendMessage(sender, { text: '📞 Anti-call active! Please text only.' });
             return;
         }
         
@@ -418,7 +310,7 @@ async function handleMessage(sock, message) {
         
         // Private mode
         if (config.mode === 'private' && !isOwner(sender)) {
-            await sock.sendMessage(sender, { text: '❌ Private mode' });
+            await sock.sendMessage(sender, { text: '❌ Private mode. Only owner can use.' });
             return;
         }
         
@@ -433,15 +325,48 @@ async function handleMessage(sock, message) {
     }
 }
 
-// ============ CONNECT WITH AUTO-RECONNECT ============
-async function connectToWhatsApp() {
-    if (isConnecting) {
-        console.log(chalk.yellow('Already connecting...'));
-        return;
+// ============ WEB ENDPOINTS ============
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'ok', 
+        bot: config.botName,
+        connected: sock ? true : false,
+        time: new Date().toISOString()
+    });
+});
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/pair', async (req, res) => {
+    const number = req.query.number;
+    if (!number) {
+        return res.json({ error: 'Number required' });
     }
     
-    isConnecting = true;
+    let cleanNumber = number.replace(/[^0-9]/g, '');
     
+    try {
+        if (!sock) {
+            return res.json({ error: 'Bot connecting, please wait...' });
+        }
+        
+        const code = await sock.requestPairingCode(cleanNumber);
+        console.log(`✅ Pairing code for ${cleanNumber}: ${code}`);
+        res.json({ code: code });
+        
+    } catch (error) {
+        console.error('Pairing error:', error.message);
+        res.json({ error: error.message });
+    }
+});
+
+// ============ BOT CONNECTION ============
+let sock = null;
+let reconnectCount = 0;
+
+async function connect() {
     try {
         const { state, saveCreds } = await useMultiFileAuthState('auth_info');
         
@@ -458,33 +383,26 @@ async function connectToWhatsApp() {
         
         sock.ev.on('creds.update', saveCreds);
         
-        sock.ev.on('connection.update', async (update) => {
+        sock.ev.on('connection.update', (update) => {
             const { connection, lastDisconnect } = update;
             
+            if (connection === 'open') {
+                console.log('\n✅ ================================');
+                console.log(`✅ ${config.botName} Bot Online!`);
+                console.log(`✅ Number: ${sock.user.id.split(':')[0]}`);
+                console.log(`✅ Mode: ${config.mode}`);
+                console.log('✅ ================================\n');
+                reconnectCount = 0;
+            }
+            
             if (connection === 'close') {
-                const statusCode = lastDisconnect?.error?.output?.statusCode;
-                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-                
-                if (shouldReconnect) {
-                    reconnectAttempts++;
-                    console.log(chalk.yellow(`⚠️ Disconnected (${reconnectAttempts}/${maxReconnectAttempts})`));
-                    
-                    if (reconnectAttempts <= maxReconnectAttempts) {
-                        const waitTime = Math.min(5000 * reconnectAttempts, 60000);
-                        console.log(chalk.yellow(`⏳ Reconnecting in ${waitTime/1000}s...`));
-                        await delay(waitTime);
-                        isConnecting = false;
-                        connectToWhatsApp();
-                    }
+                const code = lastDisconnect?.error?.output?.statusCode;
+                if (code !== DisconnectReason.loggedOut) {
+                    console.log('⚠️ Disconnected, reconnecting...');
+                    setTimeout(connect, 5000);
                 } else {
-                    console.log(chalk.red('❌ Logged out. Use web interface to pair again.'));
+                    console.log('❌ Logged out. Use web interface to pair again.');
                 }
-            } 
-            else if (connection === 'open') {
-                reconnectAttempts = 0;
-                console.log(chalk.green(`\n✅ Bot Online!`));
-                console.log(chalk.cyan(`🤖 ${config.botName}`));
-                console.log(chalk.cyan(`📱 ${sock.user.id.split(':')[0]}\n`));
             }
         });
         
@@ -494,42 +412,18 @@ async function connectToWhatsApp() {
             }
         });
         
-        isConnecting = false;
-        
     } catch (error) {
-        console.log(chalk.red(`❌ Connection error: ${error.message}`));
-        isConnecting = false;
-        
-        setTimeout(() => {
-            connectToWhatsApp();
-        }, 10000);
+        console.log('❌ Connection error:', error.message);
+        setTimeout(connect, 10000);
     }
 }
 
-// ============ START BOT ============
-console.log(chalk.blue('🚀 Starting WhatsApp Bot...\n'));
-connectToWhatsApp();
-
-// Keep alive log
-setInterval(() => {
-    if (sock?.user) {
-        console.log(chalk.dim(`[${formatTime()}] Bot running`));
-    }
-}, 300000);
-
-// Graceful shutdown
-process.on('SIGINT', async () => {
-    console.log(chalk.yellow('\n🛑 Shutting down...'));
-    if (sock) {
-        await sock.logout();
-    }
-    process.exit(0);
+// ============ START SERVER & BOT ============
+app.listen(PORT, () => {
+    console.log(`\n🌐 Web Interface: http://localhost:${PORT}`);
+    console.log(`🔗 Pairing URL: http://localhost:${PORT}/pair?number=923266571331`);
+    console.log(`📊 Health Check: http://localhost:${PORT}/health\n`);
 });
 
-process.on('uncaughtException', (error) => {
-    console.log(chalk.red(`Uncaught: ${error.message}`));
-});
-
-process.on('unhandledRejection', (error) {
-    console.log(chalk.red(`Unhandled: ${error}`));
-});
+console.log('🚀 Starting HJ-HACKER Bot...\n');
+connect();
